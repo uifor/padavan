@@ -11,23 +11,28 @@ jobs:
         target: [K2P, K2P-NANO, K2P-USB]
         toolchain: [mipsel-linux-musl]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4 # 升级到 v4
+
       - uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ matrix.target }}-${{ matrix.toolchain }}
+
       - uses: actions/setup-go@v4
         with:
           go-version: '1.20'
           check-latest: true
           cache: false
-      - uses: actions/setup-node@v3
+
+      - uses: actions/setup-node@v4 # 升级到 v4
         with:
           node-version: 18
           check-latest: true
+
       - name: Prepare
         run: |
           sudo apt update
           sudo apt install libtool-bin gperf python3-docutils autopoint gettext ccache
+
       - name: Build
         run: |
           make ${{ matrix.target }} TOOLCHAIN=${{ matrix.toolchain }}
@@ -35,26 +40,44 @@ jobs:
             image=$(ls trunk/images/*.trx)
             mv $image $(echo $image | sed 's/K2P/K2P-NANO/')
           fi
-      - uses: actions/upload-artifact@v3
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4 # 升级到 v4
         with:
-          name: ${{ matrix.toolchain }}
+          # 使用 matrix 组合名称，防止 v4 重名覆盖报错
+          name: firmware-${{ matrix.target }}-${{ matrix.toolchain }}
           path: trunk/images/*.trx
+
   publish:
     needs: [build]
     runs-on: ubuntu-22.04
+    # 保持原逻辑：仅在 main 分支手动触发时发布
     if: ${{ github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write # 确保有创建 Tag 和 Release 的权限
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
-      - name: Set Tag Name
-        run: echo "TAG_ANME=$(date +%Y%m%d)" >> $GITHUB_ENV
-      - uses: rickstaa/action-create-tag@v1
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4 # 必须与 upload 同版本
         with:
-          tag: ${{ env.TAG_ANME }}
+          # v4 默认会下载所有 artifact 到各自的子目录中
+          path: release-artifacts
+
+      - name: Set Tag Name
+        run: echo "TAG_NAME=$(date +%Y%m%d)" >> $GITHUB_ENV
+
+      - name: Create Tag
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ env.TAG_NAME }}
           force_push_tag: true
-      - uses: ncipollo/release-action@v1
+
+      - name: Release
+        uses: ncipollo/release-action@v1
         with:
           commit: ${{ github.sha }}
-          tag: ${{ env.TAG_ANME }}
-          artifacts: "mipsel-linux-musl/*.trx"
+          tag: ${{ env.TAG_NAME }}
+          # 匹配下载目录下的所有 trx 文件
+          artifacts: "release-artifacts/**/*.trx"
           allowUpdates: true
