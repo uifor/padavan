@@ -11,7 +11,9 @@ jobs:
       matrix:
         target: [mipsel-linux-uclibc, mipsel-linux-musl]
     steps:
-      - uses: actions/checkout@v3
+      # 建议同步升级到 v4
+      - uses: actions/checkout@v4
+
       - name: Prepare
         run: |
           sudo apt update
@@ -19,6 +21,7 @@ jobs:
             fakeroot kmod cpio git python3-docutils gettext automake autopoint \
             texinfo build-essential help2man pkg-config zlib1g-dev libgmp3-dev \
             libmpc-dev libmpfr-dev libncurses5-dev libltdl-dev wget libc-dev-bin
+
       - name: Build
         run: |
           make CT_TARGET=${CT_TARGET} CT_VERSION=${CT_VERSION}
@@ -28,10 +31,18 @@ jobs:
           CT_TARGET: ${{ matrix.target }}
           CT_VERSION: 1.26.0
         working-directory: toolchain
-      - uses: actions/upload-artifact@v3
+
+      # 修复后的 Artifact 上传
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: toolchain
+          # 通过 matrix.target 区分名称，避免 v4 的重名报错
+          name: toolchain-${{ matrix.target }}
           path: toolchain/${{ matrix.target }}.tar.xz
+          # 可选：设置保留天数（默认 90 天）
+          retention-days: 7
+
+      # Release 上传保持不变，但建议检查 tag 策略
       - uses: svenstaro/upload-release-action@2.2.0
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
