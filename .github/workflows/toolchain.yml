@@ -7,6 +7,9 @@ jobs:
   build:
     name: build
     runs-on: ubuntu-22.04
+    # 1. 关键修复：添加写权限
+    permissions:
+      contents: write
     strategy:
       matrix:
         target: [mipsel-linux-uclibc, mipsel-linux-musl]
@@ -42,10 +45,11 @@ jobs:
           # 可选：设置保留天数（默认 90 天）
           retention-days: 7
 
-      # Release 上传保持不变，但建议检查 tag 策略
-      - uses: svenstaro/upload-release-action@2.2.0
+      # 4. 修复 Release Not Found 问题
+      - uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: toolchain/${{ matrix.target }}.tar.xz
           tag: toolchain
           overwrite: true
+          body: "Auto-compiled toolchain via GitHub Actions"
